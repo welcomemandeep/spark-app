@@ -111,9 +111,9 @@ object Tasks {
     //    b.  Leave from Y after 12
     //    c.  Flight from Y should be 2 days after
     val distinct_dataframe = df.select("Origin", "Dest", "DepTime", "FlightDate", "DepTime","FlightNum" , "UniqueCarrier","ArrDelay").distinct()
-    val x_y_df = distinct_dataframe.filter($"DepTime" <= 1200)
+    val x_y_df = distinct_dataframe.filter($"DepTime" <= 1200).persist()
 //    x_y_df.show(10000)
-    val y_z_df = distinct_dataframe.filter($"DepTime" >= 1200)
+    val y_z_df = distinct_dataframe.filter($"DepTime" >= 1200).persist()
 //    y_z_df.show(10000)
     x_y_df.createOrReplaceTempView("x_y_view")
     y_z_df.createOrReplaceTempView("y_z_view")
