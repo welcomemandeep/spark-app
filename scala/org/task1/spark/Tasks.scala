@@ -144,7 +144,7 @@ object Tasks {
       //" FROM x_y_view JOIN y_z_view on x_y_view.Dest = y_z_view.Origin " +
       //"WHERE datediff(y_z_view.FlightDate, x_y_view.FlightDate)=2 ) s where rank=1").
       //write.cassandraFormat("x_y_z", "aviation_online").mode(SaveMode.Append).save()
-    distinct_comb.foreach{ case (p,q,r,s)=>val list = final_df.filter($"x" === p &&  $"y" === q && $"z" === r && $"flight_date" === s). orderBy("total_arrival_delay").limit(1) ;list.show() ; list.write.cassandraFormat("x_y_z", "aviation_online").mode(SaveMode.Append).save()}
+    distinct_comb.foreach{ case (p,q,r,s)=>val list = final_df.filter($"x" === p &&  $"y" === q && $"z" === r && $"flight_date" === s).orderBy("total_arrival_delay").limit(1) ; list.write.cassandraFormat("x_y_z", "aviation_online").mode(SaveMode.Append).save()}
 
   }
 }
