@@ -111,26 +111,40 @@ object Tasks {
     //    b.  Leave from Y after 12
     //    c.  Flight from Y should be 2 days after
     val distinct_dataframe = df.select("Origin", "Dest", "DepTime", "FlightDate", "DepTime","FlightNum" , "UniqueCarrier","ArrDelay").distinct()
-    val x_y_df = distinct_dataframe.filter($"DepTime" <= 1200).persist()
+    val x_y_df = distinct_dataframe.filter($"DepTime" <= 1200)
 //    x_y_df.show(10000)
-    val y_z_df = distinct_dataframe.filter($"DepTime" >= 1200).persist()
+    val y_z_df = distinct_dataframe.filter($"DepTime" >= 1200)
 //    y_z_df.show(10000)
-    x_y_df.createOrReplaceTempView("x_y_view")
-    y_z_df.createOrReplaceTempView("y_z_view")
+    //x_y_df.createOrReplaceTempView("x_y_view")
+    //y_z_df.createOrReplaceTempView("y_z_view")
 //    sqlContext.sql("SELECT distinct x_y_view.Origin as X, x_y_view.Dest as Y, y_z_view.Dest as Z, x_y_view.FlightDate as dt,concat(x_y_view.UniqueCarrier,x_y_view.FlightNum) as x_y_flight,concat(y_z_view.UniqueCarrier,y_z_view.FlightNum) as y_z_flight,(x_y_view.ArrDelay +  y_z_view.ArrDelay )as arr_delay,rank() over ( PARTITION BY x_y_view.Origin,x_y_view.Dest,y_z_view.Dest,x_y_view.FlightDate ORDER BY (x_y_view.ArrDelay +  y_z_view.ArrDelay ) ASC ) AS rank  FROM x_y_view JOIN y_z_view on x_y_view.Dest = y_z_view.Origin WHERE datediff(y_z_view.FlightDate, x_y_view.FlightDate)=2").show(20000)    //  CMI → ORD → LAX, 04/03/2008
 //    sqlContext.sql("select *  from (SELECT distinct x_y_view.Origin as X, x_y_view.Dest as Y, y_z_view.Dest as Z, x_y_view.FlightDate as dt,concat(x_y_view.UniqueCarrier,x_y_view.FlightNum) as x_y_flight,concat(y_z_view.UniqueCarrier,y_z_view.FlightNum) as y_z_flight,(x_y_view.ArrDelay +  y_z_view.ArrDelay )as arr_delay,rank() over ( PARTITION BY x_y_view.Origin,x_y_view.Dest,y_z_view.Dest,x_y_view.FlightDate ORDER BY (x_y_view.ArrDelay +  y_z_view.ArrDelay ) ASC ) AS rank  FROM x_y_view JOIN y_z_view on x_y_view.Dest = y_z_view.Origin WHERE datediff(y_z_view.FlightDate, x_y_view.FlightDate)=2 ) s where rank=1").
-    sqlContext.sql("select x ,y,z,from_unixtime(unix_timestamp(dt, 'yyyy-MM-dd'), 'dd/MM/yyyy') as flight_date,x_y_flight," +
-      " y_z_flight,arr_delay as total_arrival_delay from (SELECT distinct x_y_view.Origin as x, " +
-      "x_y_view.Dest as y, y_z_view.Dest as z, x_y_view.FlightDate as dt,x_y_view.FlightDate," +
-      "concat(x_y_view.UniqueCarrier,x_y_view.FlightNum) as x_y_flight," +
-      "concat(y_z_view.UniqueCarrier,y_z_view.FlightNum) as y_z_flight," +
-      "(x_y_view.ArrDelay +  y_z_view.ArrDelay )as arr_delay," +
-      "rank() over ( PARTITION BY x_y_view.Origin,x_y_view.Dest,y_z_view.Dest," +
-      "x_y_view.FlightDate ORDER BY (x_y_view.ArrDelay +  y_z_view.ArrDelay ) ASC ) AS rank " +
-      "" +
-      " FROM x_y_view JOIN y_z_view on x_y_view.Dest = y_z_view.Origin " +
-      "WHERE datediff(y_z_view.FlightDate, x_y_view.FlightDate)=2 ) s where rank=1").
-      write.cassandraFormat("x_y_z", "aviation_online").mode(SaveMode.Append).save()
+    val final_df = y_z_df.as("a").join(x_y_df.as("b"),$"a.Origin" === $"b.Dest","inner").select($"a.Origin".as("x"),$"a.Dest".as("y"),$"b.Dest".as("z"),date_format($"a.FlightDate","dd/MM/yyyy").as("FlightDate"),$"b.FlightDate",concat($"a.UniqueCarrier",$"a.FlightNum").as("x_y_flight"),concat($"b.UniqueCarrier",$"b.FlightNum").as("y_z_flight"),($"a.ArrDelay"+$"b.ArrDelay").as("total_arrival_delay")).filter(datediff($"b.FlightDate",$"a.FlightDate")===2)
+    val distinct_comb = final_df.select("x","y","z","flight_date").distinct().collect().map(row => (row(0).toString,row(1).toString,row(2).toString, row(3).toString)).toList
+
+//    airports.foreach{ x=>
+    //      val list = result_ques_2_1.filter($"Origin" === x ).
+    //        orderBy(desc("count(DepDelayMinutes)")).limit(10).
+    //        withColumnRenamed("count(DepDelayMinutes)","Count_Dept_Ontime").
+    //        select("Carrier").map(r => r.getString(0)).collect.toList
+    //
+    //      val sf = List((x,list))
+    //      sf.toDF("airport","top10carriers").write.cassandraFormat("otdperf", "aviation_online").mode(SaveMode.Append).save()
+    //    }
+    
+ //   sqlContext.sql("select x ,y,z,from_unixtime(unix_timestamp(dt, 'yyyy-MM-dd'), 'dd/MM/yyyy') as flight_date,x_y_flight," +
+  //    " y_z_flight,arr_delay as total_arrival_delay from (SELECT distinct x_y_view.Origin as x, " +
+   //   "x_y_view.Dest as y, y_z_view.Dest as z, x_y_view.FlightDate as dt,x_y_view.FlightDate," +
+    //  "concat(x_y_view.UniqueCarrier,x_y_view.FlightNum) as x_y_flight," +
+     // "concat(y_z_view.UniqueCarrier,y_z_view.FlightNum) as y_z_flight," +
+     // "(x_y_view.ArrDelay +  y_z_view.ArrDelay )as arr_delay," +
+     // "rank() over ( PARTITION BY x_y_view.Origin,x_y_view.Dest,y_z_view.Dest," +
+     // "x_y_view.FlightDate ORDER BY (x_y_view.ArrDelay +  y_z_view.ArrDelay ) ASC ) AS rank " +
+      //"" +
+      //" FROM x_y_view JOIN y_z_view on x_y_view.Dest = y_z_view.Origin " +
+      //"WHERE datediff(y_z_view.FlightDate, x_y_view.FlightDate)=2 ) s where rank=1").
+      //write.cassandraFormat("x_y_z", "aviation_online").mode(SaveMode.Append).save()
+    distinct_comb.foreach{ case (p,q,r,s)=>val list = final_df.filter($"x" === p &&  $"y" === q && $"z" === r && $"flight_date" === s). orderBy("total_arrival_delay").limit(1) ;list.show() ; list.write.cassandraFormat("x_y_z", "aviation_online").mode(SaveMode.Append).save()}
 
   }
 }
