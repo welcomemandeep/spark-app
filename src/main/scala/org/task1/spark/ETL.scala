@@ -12,10 +12,13 @@ object ETL {
     //val spark = new org.apache.spark.SparkContext()
     val sqlContext = SparkSession.builder.appName("ETL Application").getOrCreate().sqlContext
     val df = sqlContext.read.format("csv").option("header",true).load(filePath)
-    df.select("FlightDate","Carrier","Flights",
+    df.selectExpr("FlightDate","Carrier","Flights",
       "Origin","Dest","AirlineId","DepTime","DepDelayMinutes",
-      "ArrTime","ArrDelayMinutes","DayOfWeek","FlightNum","UniqueCarrier", "ArrDelay").write.format("csv")
-      .option("header",true).save("hdfs:///root/airline_on_time_performance_cleaned_data")
-    
+      "ArrTime","ArrDelayMinutes","DayOfWeek","FlightNum","UniqueCarrier", "ArrDelay", "DepDelay")
+      .write
+      .format("kafka")
+      .option("kafka.bootstrap.servers", "localhost:9092")
+      .option("topic", "cleansed_data")
+      .option("header",true).save()
   }
 }

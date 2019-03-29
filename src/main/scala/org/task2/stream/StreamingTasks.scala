@@ -1,31 +1,53 @@
 package org.task2.stream
 
 import com.datastax.spark.connector.cql.CassandraConnectorConf
-import org.apache.spark.SparkConf
+import kafka.serializer.{Decoder, StringDecoder}
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql._
 import org.apache.spark.sql.cassandra._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{DataTypes, StructType}
+import org.apache.spark.storage.StorageLevel
+import org.apache.spark.streaming.kafka.KafkaUtils
+
+import scala.reflect.ClassTag;
+//import org.apache.spark.streaming.
+import org.apache.spark.streaming.{Seconds, StreamingContext}
+
 
 
 object StreamingTasks {
   def main(args: Array[String]) {
-    val filePath = "hdfs:///root/airline_on_time_performance_cleaned_data" // Should be some file on your system
+    val filePath = "file:///home/ikjotkaur/On_Time_On_Time_Performance_1988_1.csv" // Should be some file on your system
+    val sc = new SparkContext();
     val sparkSession = SparkSession.builder.appName("Tasks Application").getOrCreate()
     val sqlContext = sparkSession.sqlContext
 //    val df = sqlContext.read.format("csv").option("header", true).load(filePath).cache()
     import sqlContext.implicits._
-    val topic = "cleansed-data"
+    val topic =  Map("cleansed-data"->1)
+    //val conf = new SparkConf().setAppName("Simple Streaming Application")
+    val ssc = new StreamingContext(sc, Seconds(1))
+    val topicsSet = "cleansed-data".split(",").toSet
 
-    val md = sparkSession
-      .readStream
-      .format("kafka")
-      .option("kafka.bootstrap.servers", "127.0.0.1:9092")
-      .option("subscribe", topic)
-      .load()
-    val jsonDf = md.selectExpr("CAST(value AS STRING)")
+    val kafkaParams = Map[String, String]("metadata.broker.list" -> "localhost:9092")
 
-    jsonDf.show(10, false)
+
+
+
+      val directKafkaStream  = (1 to 2) map { _ =>
+      KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](
+        ssc, kafkaParams, topicsSet).map(_._2)
+    }
+
+    val unifiedStream = ssc.union(directKafkaStream) // Merge the "per-partition" DStreams
+    val sparkProcessingParallelism = 1 // You'd probably pick a higher value than 1 in production.
+    // Repartition distributes the received batches of data across specified number of machines in the cluster
+    // before further processing.  Essentially, what we are doing here is to decouple processing parallelism from
+    // reading parallelism (limited by #partitions).
+    unifiedStream.repartition(sparkProcessingParallelism)
+    unifiedStream.print()
+
+    //jsonDf.show(10, false)
 
     val struct = new StructType()
       .add("FlightDate", DataTypes.StringType)
@@ -43,7 +65,7 @@ object StreamingTasks {
       .add("UniqueCarrier", DataTypes.StringType)
       .add("ArrDelay", DataTypes.StringType)
 
-    val nestedDf = jsonDf.select(from_json($"value", struct).as("data"))
+   /* val nestedDf = jsonDf.select(from_json($"value", struct).as("data"))
     val df = nestedDf.selectExpr("data.FlightDate","data.Carrier","data.Flights","data.Origin","data.Dest","data.AirlineId","data.DepTime","data.DepDelayMinutes","data.ArrTime","data.ArrDelayMinutes","data.DayOfWeek","data.FlightNum","data.UniqueCarrier","data.ArrDelay")
 
     //     Group 1 queries
@@ -112,6 +134,6 @@ object StreamingTasks {
 
         sf.toDF("origin", "dest", "carriers").write.
           cassandraFormat("source_destination_airline2", "aviation_online").mode(SaveMode.Append).save()
-    }
+    }*/
   }
 }

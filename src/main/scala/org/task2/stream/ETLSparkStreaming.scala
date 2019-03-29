@@ -1,9 +1,10 @@
 package org.task2.stream
+
 import org.apache.spark.sql._
 
 object ETLSparkStreaming {
   def main(args: Array[String]) {
-    val filePath = "file:///Users/mgandhi/Downloads/On_Time_On_Time_Performance_1988_1.csv" // Persisted on file system
+    val filePath = "file:///home/ikjotkaur/On_Time_On_Time_Performance_1988_1.csv" // Persisted on file system
     val accessKeyId = System.getenv("AWS_ACCESS_KEY_ID")
     val secretAccessKey = System.getenv("AWS_SECRET_ACCESS_KEY")
     //val spark = new org.apache.spark.SparkContext()
