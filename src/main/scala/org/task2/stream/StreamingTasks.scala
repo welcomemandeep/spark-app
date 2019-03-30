@@ -1,53 +1,31 @@
 package org.task2.stream
 
 import com.datastax.spark.connector.cql.CassandraConnectorConf
-import kafka.serializer.{Decoder, StringDecoder}
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.SparkConf
 import org.apache.spark.sql._
 import org.apache.spark.sql.cassandra._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{DataTypes, StructType}
-import org.apache.spark.storage.StorageLevel
-import org.apache.spark.streaming.kafka.KafkaUtils
-
-import scala.reflect.ClassTag;
-//import org.apache.spark.streaming.
-import org.apache.spark.streaming.{Seconds, StreamingContext}
-
 
 
 object StreamingTasks {
   def main(args: Array[String]) {
     val filePath = "file:///home/ikjotkaur/On_Time_On_Time_Performance_1988_1.csv" // Should be some file on your system
-    val sc = new SparkContext();
     val sparkSession = SparkSession.builder.appName("Tasks Application").getOrCreate()
     val sqlContext = sparkSession.sqlContext
-//    val df = sqlContext.read.format("csv").option("header", true).load(filePath).cache()
-    import sqlContext.implicits._
-    val topic =  Map("cleansed-data"->1)
-    //val conf = new SparkConf().setAppName("Simple Streaming Application")
-    val ssc = new StreamingContext(sc, Seconds(1))
-    val topicsSet = "cleansed-data".split(",").toSet
 
-    val kafkaParams = Map[String, String]("metadata.broker.list" -> "localhost:9092")
+    val topic = "cleansed-data"
 
 
+    val md = sparkSession
+      .readStream
+      .format("kafka")
+      .option("kafka.bootstrap.servers", "3.91.59.193:9092")
+      .option("subscribe", topic)
+      .load()
+    val jsonDf = md.selectExpr("CAST(value AS STRING)")
 
-
-      val directKafkaStream  = (1 to 2) map { _ =>
-      KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](
-        ssc, kafkaParams, topicsSet).map(_._2)
-    }
-
-    val unifiedStream = ssc.union(directKafkaStream) // Merge the "per-partition" DStreams
-    val sparkProcessingParallelism = 1 // You'd probably pick a higher value than 1 in production.
-    // Repartition distributes the received batches of data across specified number of machines in the cluster
-    // before further processing.  Essentially, what we are doing here is to decouple processing parallelism from
-    // reading parallelism (limited by #partitions).
-    unifiedStream.repartition(sparkProcessingParallelism)
-    unifiedStream.print()
-
-    //jsonDf.show(10, false)
+    jsonDf.show(10, false)
 
     val struct = new StructType()
       .add("FlightDate", DataTypes.StringType)
@@ -65,17 +43,17 @@ object StreamingTasks {
       .add("UniqueCarrier", DataTypes.StringType)
       .add("ArrDelay", DataTypes.StringType)
 
-   /* val nestedDf = jsonDf.select(from_json($"value", struct).as("data"))
+    import sqlContext.implicits._
+
+    val nestedDf = jsonDf.select(from_json($"value", struct).as("data"))
     val df = nestedDf.selectExpr("data.FlightDate","data.Carrier","data.Flights","data.Origin","data.Dest","data.AirlineId","data.DepTime","data.DepDelayMinutes","data.ArrTime","data.ArrDelayMinutes","data.DayOfWeek","data.FlightNum","data.UniqueCarrier","data.ArrDelay")
 
     //     Group 1 queries
     //     1.2 Rank the top 10 airlines by on-time arrival performance.
 
     val result_ques_1_2 = df.select("AirlineID", "ArrDelayMinutes").groupBy("AirlineId").agg(count("ArrDelayMinutes"))
-   // val result_ques_1_2 = df.select("AirlineID", "ArrDelayMinutes").filter($"ArrDelayMinutes" === "0.00").groupBy("AirlineId").agg(count("ArrDelayMinutes"))
     result_ques_1_2.sort("count(ArrDelayMinutes)").orderBy(desc("count(ArrDelayMinutes)")).show(10)
 
-     System.exit(1)
     //   Rank the days of the week by on-time arrival performance
     val result_ques_1_3 = df.select("DayOfWeek", "ArrDelayMinutes").filter($"ArrDelayMinutes" === "0.00").groupBy("DayOfWeek").agg(count("ArrDelayMinutes"))
     result_ques_1_3.sort("count(ArrDelayMinutes)").orderBy(desc("count(ArrDelayMinutes)")).show(10)
@@ -95,7 +73,7 @@ object StreamingTasks {
         select("Carrier").map(r => r.getString(0)).collect.toList
 
       val sf = List((x, list))
-      sf.toDF("airport", "top10carriers").write.cassandraFormat("otdperf", "aviation_online").mode(SaveMode.Append).save()
+      sf.toDF("airport", "top10carriers").write.cassandraFormat("otdperf_tasks2", "aviation_online").mode(SaveMode.Append).save()
     }
 
     val result_ques_2_2 = df.select("Origin", "Dest", "DepDelayMinutes").filter($"DepDelayMinutes" === "0.00").groupBy("Origin", "Dest").agg(count("DepDelayMinutes"))
@@ -107,7 +85,7 @@ object StreamingTasks {
         select("Dest").map(r => r.getString(0)).collect.toList
       val sf = List((x, list))
 
-      sf.toDF("airport", "top10ontimedest").write.cassandraFormat("otdestperf", "aviation_online").mode(SaveMode.Append).save()
+      sf.toDF("airport", "top10ontimedest").write.cassandraFormat("otdestperf_tasks2", "aviation_online").mode(SaveMode.Append).save()
     }
 
     //For each source-destination pair X-Y, rank the top-10 carriers in decreasing order of on-time arrival performance at Y from X.
@@ -133,7 +111,7 @@ object StreamingTasks {
         sf.toDF("origin", "dest", "carriers")
 
         sf.toDF("origin", "dest", "carriers").write.
-          cassandraFormat("source_destination_airline2", "aviation_online").mode(SaveMode.Append).save()
-    }*/
+          cassandraFormat("source_destination_airline2_tasks2", "aviation_online").mode(SaveMode.Append).save()
+    }
   }
 }

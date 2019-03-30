@@ -4,21 +4,30 @@ import org.apache.spark.sql._
 
 object ETLSparkStreaming {
   def main(args: Array[String]) {
-    val filePath = "file:///home/ikjotkaur/On_Time_On_Time_Performance_1988_1.csv" // Persisted on file system
-    val accessKeyId = System.getenv("AWS_ACCESS_KEY_ID")
-    val secretAccessKey = System.getenv("AWS_SECRET_ACCESS_KEY")
-    //val spark = new org.apache.spark.SparkContext()
+    val filePath = "hdfs:///root/airline_on_time_performance_cleaned_data" // Persisted on file system
+    val spark = new org.apache.spark.SparkContext()
     val sqlContext = SparkSession.builder.appName("ETL Application").getOrCreate().sqlContext
     val df = sqlContext.read.format("csv").option("header",true).load(filePath)
     val topic = "cleansed-data"
-    val df2 = df.select("FlightDate","Carrier","Flights",
+    val sparkSession = SparkSession.builder.appName("Tasks Application").getOrCreate()
+    case class Schema (
+    Year:String,FlightDate:String,
+    Carrier:String, Flights:String,
+    Origin:String, Dest:String,
+    AirlineId:String,DepTime:String,
+    DepDelayMinutesString:String, ArrTime:String,
+    ArrDelayMinutes:String,DayOfWeek:String,
+    FlightNum:String,UniqueCarrier:String,
+    ArrDelay:String)
+
+    val df2 = df.select("Year","FlightDate","Carrier","Flights",
       "Origin","Dest","AirlineId","DepTime","DepDelayMinutes",
       "ArrTime","ArrDelayMinutes","DayOfWeek","FlightNum","UniqueCarrier", "ArrDelay");
-    val md = df2.toJSON
-    md.selectExpr("CAST(value as STRING) as value")
+
+   df2.selectExpr("CAST(Year as STRING) as key","to_json(Struct(*)) as value")
       .write
       .format("kafka")
-      .option("kafka.bootstrap.servers", "127.0.0.1:9092")
+      .option("kafka.bootstrap.servers", "3.91.59.193:9092")
       .option("topic", topic)
       .save()
   }
