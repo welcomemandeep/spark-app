@@ -229,3 +229,4 @@ braries/SBT__org_spire_math_spire_2_11_0_13_0_jar.xml
 .idea/workspace.xml
 project/
 target/
+/.idea/libraries/sbt__org_apache_spark_spark_sql_kafka_0_10_2_11_2_3_0_jar.xml
