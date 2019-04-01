@@ -65,7 +65,7 @@ object StreamingTasks {
       .outputMode(OutputMode.Complete())
       .option("enable.auto.commit",true)
       .start()
-query.awaitTermination(90000)
+query.awaitTermination(900000)
 //
 //    //   Rank the days of the week by on-time arrival performance
 //    val result_ques_1_3 = df.select("DayOfWeek", "ArrDelayMinutes").filter($"ArrDelayMinutes" === "0.00")
