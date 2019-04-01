@@ -55,7 +55,7 @@ object StreamingTasks {
 
     val result_ques_1_2 = df.select("AirlineID", "ArrDelayMinutes")
 
-    val aggregates = result_ques_1_2.filter($"ArrDelayMinutes" === "0")
+    val aggregates = result_ques_1_2.filter($"ArrDelayMinutes" === "0.00")
       .groupBy(window(current_timestamp(),"1800 seconds"), $"AirlineId")
       .agg(count("ArrDelayMinutes"))
 //
