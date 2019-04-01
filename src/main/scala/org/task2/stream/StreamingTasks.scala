@@ -20,7 +20,7 @@ object StreamingTasks {
     val md = sparkSession
       .readStream
       .format("kafka")
-      .option("kafka.bootstrap.servers", sparkSession.sparkContext.getConf.getOption("spark.kafka.broker").getOrElse("ec2-3-91-59-193.compute-1.amazonaws.com"))
+      .option("kafka.bootstrap.servers", sparkSession.sparkContext.getConf.getOption("spark.kafka.broker").getOrElse("localhost:9092"))
       .option("subscribe", topic)
       .option("startingOffsets", "earliest")
       .option("enable.auto.commit",true)
@@ -55,7 +55,7 @@ object StreamingTasks {
 
     val result_ques_1_2 = df.select("AirlineID", "ArrDelayMinutes")
 
-    val aggregates = result_ques_1_2.filter($"ArrDelayMinutes" === "0.00")
+    val aggregates = result_ques_1_2.filter($"ArrDelayMinutes" === "0")
       .groupBy(window(current_timestamp(),"1800 seconds"), $"AirlineId")
       .agg(count("ArrDelayMinutes"))
 //
@@ -65,7 +65,7 @@ object StreamingTasks {
       .outputMode(OutputMode.Complete())
       .option("enable.auto.commit",true)
       .start()
-query.awaitTermination(180000)
+query.awaitTermination(90000)
 //
 //    //   Rank the days of the week by on-time arrival performance
 //    val result_ques_1_3 = df.select("DayOfWeek", "ArrDelayMinutes").filter($"ArrDelayMinutes" === "0.00")
