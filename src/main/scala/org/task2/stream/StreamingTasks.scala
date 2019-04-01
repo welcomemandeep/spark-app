@@ -5,27 +5,29 @@ import org.apache.spark.SparkConf
 import org.apache.spark.sql._
 import org.apache.spark.sql.cassandra._
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types.{DataTypes, StructType}
 
 
 object StreamingTasks {
   def main(args: Array[String]) {
-    val filePath = "file:///home/ikjotkaur/On_Time_On_Time_Performance_1988_1.csv" // Should be some file on your system
     val sparkSession = SparkSession.builder.appName("Tasks Application").getOrCreate()
     val sqlContext = sparkSession.sqlContext
 
-    val topic = "cleansed-data"
+    val topic = "cleansed-data-new"
 
 
     val md = sparkSession
       .readStream
       .format("kafka")
-      .option("kafka.bootstrap.servers", "3.91.59.193:9092")
+      .option("kafka.bootstrap.servers", sparkSession.sparkContext.getConf.getOption("spark.kafka.broker").getOrElse("ec2-3-91-59-193.compute-1.amazonaws.com"))
       .option("subscribe", topic)
+      .option("startingOffsets", "earliest")
+      .option("enable.auto.commit",true)
       .load()
     val jsonDf = md.selectExpr("CAST(value AS STRING)")
 
-    jsonDf.show(10, false)
+    //jsonDf.show(10, false)
 
     val struct = new StructType()
       .add("FlightDate", DataTypes.StringType)
@@ -51,12 +53,31 @@ object StreamingTasks {
     //     Group 1 queries
     //     1.2 Rank the top 10 airlines by on-time arrival performance.
 
-    val result_ques_1_2 = df.select("AirlineID", "ArrDelayMinutes").groupBy("AirlineId").agg(count("ArrDelayMinutes"))
-    result_ques_1_2.sort("count(ArrDelayMinutes)").orderBy(desc("count(ArrDelayMinutes)")).show(10)
+    val result_ques_1_2 = df.select("AirlineID", "ArrDelayMinutes")
 
-    //   Rank the days of the week by on-time arrival performance
-    val result_ques_1_3 = df.select("DayOfWeek", "ArrDelayMinutes").filter($"ArrDelayMinutes" === "0.00").groupBy("DayOfWeek").agg(count("ArrDelayMinutes"))
-    result_ques_1_3.sort("count(ArrDelayMinutes)").orderBy(desc("count(ArrDelayMinutes)")).show(10)
+    val aggregates = result_ques_1_2.filter($"ArrDelayMinutes" === "0.00")
+      .groupBy(window(current_timestamp(),"1800 seconds"), $"AirlineId")
+      .agg(count("ArrDelayMinutes"))
+//
+    var query = aggregates.sort("count(ArrDelayMinutes)").orderBy(desc("count(ArrDelayMinutes)"))
+      .writeStream
+      .format("console")
+      .outputMode(OutputMode.Complete())
+      .option("enable.auto.commit",true)
+      .start()
+query.awaitTermination(180000)
+//
+//    //   Rank the days of the week by on-time arrival performance
+//    val result_ques_1_3 = df.select("DayOfWeek", "ArrDelayMinutes").filter($"ArrDelayMinutes" === "0.00")
+//      .groupBy(window(current_timestamp(),"4 seconds"), $"DayOfWeek").agg(count("ArrDelayMinutes"))
+//    val query1 = result_ques_1_3.sort("count(ArrDelayMinutes)").orderBy(desc("count(ArrDelayMinutes)"))
+//      .writeStream
+//      .format("console")
+//      .outputMode(OutputMode.Complete)
+//      .start()
+//    query1.awaitTermination(1200000)
+//
+    System.exit(0)
 
 
     val conf = new SparkConf(true)
@@ -64,7 +85,7 @@ object StreamingTasks {
 
 
     //    For each airport X, rank the top-10 carriers in decreasing order of on-time departure performance from X
-    val result_ques_2_1 = df.select("Origin", "Carrier", "DepDelayMinutes").filter($"DepDelayMinutes" === "0.00").groupBy("Origin", "Carrier").agg(count("DepDelayMinutes"))
+    val result_ques_2_1 = df.select("Origin", "Carrier", "DepDelayMinutes").filter($"DepDelayMinutes" === "0.00").groupBy(window(current_timestamp(),"60 seconds"),$"Origin", $"Carrier").agg(count("DepDelayMinutes"))
     val airports = result_ques_2_1.select("Origin").distinct().collect().map(_ (0).toString).toList
     airports.foreach { x =>
       val list = result_ques_2_1.filter($"Origin" === x).
@@ -75,7 +96,7 @@ object StreamingTasks {
       val sf = List((x, list))
       sf.toDF("airport", "top10carriers").write.cassandraFormat("otdperf_tasks2", "aviation_online").mode(SaveMode.Append).save()
     }
-
+System.exit(0)
     val result_ques_2_2 = df.select("Origin", "Dest", "DepDelayMinutes").filter($"DepDelayMinutes" === "0.00").groupBy("Origin", "Dest").agg(count("DepDelayMinutes"))
     val origin = result_ques_2_2.select("Origin").distinct().collect().map(_ (0).toString).toList
     origin.foreach { x =>
